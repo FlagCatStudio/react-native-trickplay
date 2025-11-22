@@ -15,13 +15,6 @@
 - 🎯 **Smart track selection** - Automatically picks optimal quality variant (360p default)
 - 📦 **Zero configuration** - Works out of the box with Shaka Packager generated HLS streams
 
-## 📋 Requirements
-
-- React Native 0.74+
-- Expo SDK 51+
-- iOS 13.0+
-- Android API 24+ (Android 7.0+)
-
 ## 🚀 Installation
 
 ```bash
@@ -73,62 +66,6 @@ async function getThumbnail() {
       source={{ uri: result.uri }}
       style={{ width: result.width, height: result.height }}
     />
-  );
-}
-```
-
-### Advanced Example: Scrubbing Preview
-
-```typescript
-import { useState, useRef } from 'react';
-import ReactNativeTrickplay from 'react-native-trickplay';
-import { View, Image, Slider, Text } from 'react-native';
-
-function VideoScrubber({ videoUrl, duration }) {
-  const [currentTime, setCurrentTime] = useState(0);
-  const [thumbnail, setThumbnail] = useState<string | null>(null);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleSeek = (time: number) => {
-    setCurrentTime(time);
-
-    // Debounce extraction to avoid too many calls
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        // Extract with target dimensions 90x160 (9:16 vertical format)
-        const result = await ReactNativeTrickplay.extractFrameAsync(
-          videoUrl,
-          time,
-          90,   // Target width
-          160   // Target height
-        );
-        setThumbnail(result.uri);
-      } catch (error) {
-        console.error('Failed to extract frame:', error);
-      }
-    }, 100);
-  };
-
-  return (
-    <View>
-      {thumbnail && (
-        <Image
-          source={{ uri: thumbnail }}
-          style={{ width: 90, height: 160, borderRadius: 8 }}
-        />
-      )}
-      <Slider
-        value={currentTime}
-        minimumValue={0}
-        maximumValue={duration}
-        onValueChange={handleSeek}
-      />
-      <Text>{currentTime.toFixed(1)}s / {duration}s</Text>
-    </View>
   );
 }
 ```
@@ -186,27 +123,6 @@ Extracts a video frame at the specified timestamp with optional target dimension
 - **Subsequent extractions**: 100-500ms (cached segments) or 50-150ms (same segment)
 - **Memory usage**: ~20-40 KB per frame at 360p, ~2-5 KB per frame at 90x160
 - **Automatic optimization**: ExoPlayer caches segments, iOS pre-buffers keyframes
-
-### Tips for Production
-
-1. **Use target dimensions** - Extract at display size (e.g., 90x160) for 10x smaller files
-2. **Debounce scrubbing** - 100-200ms debounce prevents excessive extractions
-3. **Automatic cleanup** - Module uses LRU cache (max 10 frames) to prevent storage bloat
-4. **Master manifest** - Let native track selector choose optimal quality automatically
-
-## 🏗️ Architecture
-
-### iOS (Swift + AVFoundation)
-
-- Uses `AVAssetImageGenerator` with infinite tolerances for keyframe-only extraction
-- Natively handles HLS playlists including I-FRAMES-ONLY variants
-- Async/await for clean concurrency
-
-### Android (Kotlin + Media3 ExoPlayer)
-
-- Uses ExoPlayer for robust HLS support
-- Headless Surface rendering for frame extraction
-- Coroutines for async operations with proper cleanup
 
 ## 📄 License
 
