@@ -419,7 +419,7 @@ class FrameExtractor(private val context: Context) {
     
     private companion object {
         private const val TAG = "FrameExtractor"
-        private const val DEBUG = true // Set to false for production
+        private const val DEBUG = false // Set to false for production
         
         // Track selection constraints
         private const val MAX_DIMENSION = 640 // Max width or height (360p for 16:9)
