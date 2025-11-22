@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "react-native-trickplay": ["../src/index"],
+      "react-native-trickplay/*": ["../src/*"]
+    }
+  }
+}
