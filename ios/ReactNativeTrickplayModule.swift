@@ -11,6 +11,13 @@ import UIKit
 /// - Async/await for clean concurrency
 public class ReactNativeTrickplayModule: Module {
   
+  // MARK: - Cached State
+  
+  /// Cached asset and image generator per URL to avoid re-downloading the manifest
+  /// and re-initializing on every extraction during a scrub session.
+  private var cachedUrl: String?
+  private var cachedImageGenerator: AVAssetImageGenerator?
+  
   // MARK: - Module Definition
   
   public func definition() -> ModuleDefinition {
@@ -43,23 +50,31 @@ public class ReactNativeTrickplayModule: Module {
   ///   - targetWidth: Optional target width (preserves aspect ratio if height not provided)
   ///   - targetHeight: Optional target height (preserves aspect ratio if width not provided)
   /// - Returns: Dictionary with uri, width, height keys
-  private func extractFrame(
-    from url: URL,
-    at seconds: Double,
-    targetWidth: Int?,
-    targetHeight: Int?,
+  /// Returns a cached or freshly created AVAssetImageGenerator for the given URL.
+  /// On first call (or URL change): creates AVURLAsset, validates playability, configures generator.
+  /// On subsequent calls with the same URL: returns the cached generator instantly.
+  private func getImageGenerator(
+    for url: URL,
     headers: [String: String]? = nil
-  ) async throws -> [String: Any] {
+  ) async throws -> AVAssetImageGenerator {
+    let urlString = url.absoluteString
     
-    // Pass HTTP headers for authenticated streams
+    // Return cached generator if URL matches
+    if urlString == cachedUrl, let generator = cachedImageGenerator {
+      return generator
+    }
+    
+    // Cancel any pending generation from the previous URL
+    cachedImageGenerator?.cancelAllCGImageGeneration()
+    
+    // Create new asset with optional auth headers
     var options: [String: Any] = [:]
     if let headers = headers, !headers.isEmpty {
       options["AVURLAssetHTTPHeaderFieldsKey"] = headers
     }
     let asset = AVURLAsset(url: url, options: options)
     
-    // Verify asset is playable
-    // asset.load(.isPlayable) requires iOS 16+, use legacy API for broader compatibility
+    // Verify asset is playable (iOS 13+ compatible)
     let isPlayable: Bool = try await withCheckedThrowingContinuation { continuation in
       asset.loadValuesAsynchronously(forKeys: ["playable"]) {
         let status = asset.statusOfValue(forKey: "playable", error: nil)
@@ -74,17 +89,31 @@ public class ReactNativeTrickplayModule: Module {
       throw FrameExtractionError.assetNotPlayable
     }
     
-    let imageGenerator = AVAssetImageGenerator(asset: asset)
+    let generator = AVAssetImageGenerator(asset: asset)
+    generator.appliesPreferredTrackTransform = true
+    // Infinite tolerances = seek to nearest keyframe (I-Frame), near-instant
+    generator.requestedTimeToleranceBefore = .positiveInfinity
+    generator.requestedTimeToleranceAfter = .positiveInfinity
     
-    // CRITICAL: Configure for keyframe extraction (I-Frames only)
-    // Infinite tolerances = nearest keyframe, making extraction near-instant
-    imageGenerator.appliesPreferredTrackTransform = true
-    imageGenerator.requestedTimeToleranceBefore = .positiveInfinity
-    imageGenerator.requestedTimeToleranceAfter = .positiveInfinity
+    // Cache for reuse
+    cachedUrl = urlString
+    cachedImageGenerator = generator
+    
+    return generator
+  }
+  
+  private func extractFrame(
+    from url: URL,
+    at seconds: Double,
+    targetWidth: Int?,
+    targetHeight: Int?,
+    headers: [String: String]? = nil
+  ) async throws -> [String: Any] {
+    
+    let imageGenerator = try await getImageGenerator(for: url, headers: headers)
     
     let requestedTime = CMTime(seconds: seconds, preferredTimescale: 600)
     
-    // Use legacy synchronous API for iOS 13+ compatibility
     let cgImage = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CGImage, Error>) in
       imageGenerator.generateCGImagesAsynchronously(forTimes: [NSValue(time: requestedTime)]) { _, image, _, result, error in
         if let error = error {
