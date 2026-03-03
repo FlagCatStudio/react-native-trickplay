@@ -52,7 +52,18 @@ public class ReactNativeTrickplayModule: Module {
     let asset = AVURLAsset(url: url)
     
     // Verify asset is playable
-    guard try await asset.load(.isPlayable), await asset.isPlayable else {
+    // asset.load(.isPlayable) requires iOS 16+, use legacy API for broader compatibility
+    let isPlayable: Bool = try await withCheckedThrowingContinuation { continuation in
+      asset.loadValuesAsynchronously(forKeys: ["playable"]) {
+        let status = asset.statusOfValue(forKey: "playable", error: nil)
+        if status == .loaded {
+          continuation.resume(returning: asset.isPlayable)
+        } else {
+          continuation.resume(returning: false)
+        }
+      }
+    }
+    guard isPlayable else {
       throw FrameExtractionError.assetNotPlayable
     }
     
@@ -65,7 +76,19 @@ public class ReactNativeTrickplayModule: Module {
     imageGenerator.requestedTimeToleranceAfter = .positiveInfinity
     
     let requestedTime = CMTime(seconds: seconds, preferredTimescale: 600)
-    let (cgImage, _) = try await imageGenerator.image(at: requestedTime)
+    
+    // Use legacy synchronous API for iOS 13+ compatibility
+    let cgImage = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CGImage, Error>) in
+      imageGenerator.generateCGImagesAsynchronously(forTimes: [NSValue(time: requestedTime)]) { _, image, _, result, error in
+        if let error = error {
+          continuation.resume(throwing: error)
+        } else if let image = image {
+          continuation.resume(returning: image)
+        } else {
+          continuation.resume(throwing: FrameExtractionError.imageConversionFailed)
+        }
+      }
+    }
     
     // Calculate target dimensions with aspect ratio preservation
     let sourceDimensions = (width: cgImage.width, height: cgImage.height)
