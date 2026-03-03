@@ -78,7 +78,8 @@ class FrameExtractor(private val context: Context) {
         urlString: String,
         seconds: Double,
         targetWidth: Int? = null,
-        targetHeight: Int? = null
+        targetHeight: Int? = null,
+        headers: Map<String, String>? = null
     ): Bitmap = extractionMutex.withLock {
         withContext(Dispatchers.Main) {
             val startTime = System.currentTimeMillis()
@@ -89,7 +90,7 @@ class FrameExtractor(private val context: Context) {
                 val player = requirePlayer()
                 
                 if (shouldReloadMedia(urlString)) {
-                    loadMedia(player, urlString, startTime)
+                    loadMedia(player, urlString, startTime, headers)
                 }
                 
                 seekToPosition(player, seconds, startTime)
@@ -167,14 +168,24 @@ class FrameExtractor(private val context: Context) {
     
     private fun shouldReloadMedia(url: String): Boolean = currentUrl != url
     
-    private suspend fun loadMedia(player: ExoPlayer, url: String, startTime: Long) {
+    private suspend fun loadMedia(player: ExoPlayer, url: String, startTime: Long, headers: Map<String, String>? = null) {
         logDebug("[${elapsed(startTime)}ms] Loading new media")
         
         // Reset player to avoid cache issues
         player.stop()
         player.clearMediaItems()
         
-        val mediaItem = MediaItem.fromUri(url)
+        val mediaItemBuilder = MediaItem.Builder().setUri(url)
+        if (!headers.isNullOrEmpty()) {
+            mediaItemBuilder.setRequestMetadata(
+                MediaItem.RequestMetadata.Builder()
+                    .setExtras(android.os.Bundle().apply {
+                        headers.forEach { (key, value) -> putString(key, value) }
+                    })
+                    .build()
+            )
+        }
+        val mediaItem = mediaItemBuilder.build()
         player.setMediaItem(mediaItem)
         player.prepare()
         

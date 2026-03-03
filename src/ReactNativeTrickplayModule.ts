@@ -9,13 +9,15 @@ declare class ReactNativeTrickplayModule extends NativeModule<ReactNativeTrickpl
    * @param seconds Timestamp in seconds where to extract the frame
    * @param targetWidth Optional target width (preserves aspect ratio if only one dimension provided)
    * @param targetHeight Optional target height (preserves aspect ratio if only one dimension provided)
+   * @param headers Optional HTTP headers for authenticated streams
    * @returns Promise resolving to local file URI and frame metadata
    */
   extractFrameAsync(
     url: string,
     seconds: number,
     targetWidth?: number,
-    targetHeight?: number
+    targetHeight?: number,
+    headers?: Record<string, string>
   ): Promise<ExtractFrameResult>;
 }
 

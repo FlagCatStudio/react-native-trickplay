@@ -27,8 +27,8 @@ class ReactNativeTrickplayModule : Module() {
             cleanupExtractor()
         }
 
-        AsyncFunction("extractFrameAsync") { urlString: String, seconds: Double, targetWidth: Int?, targetHeight: Int? ->
-            extractFrame(urlString, seconds, targetWidth, targetHeight)
+        AsyncFunction("extractFrameAsync") { urlString: String, seconds: Double, targetWidth: Int?, targetHeight: Int?, headers: Map<String, String>? ->
+            extractFrame(urlString, seconds, targetWidth, targetHeight, headers)
         }
     }
     
@@ -48,7 +48,8 @@ class ReactNativeTrickplayModule : Module() {
         urlString: String,
         seconds: Double,
         targetWidth: Int?,
-        targetHeight: Int?
+        targetHeight: Int?,
+        headers: Map<String, String>? = null
     ): Map<String, Any> {
         val context = appContext.reactContext 
             ?: throw FrameExtractionException("React context is not available")
@@ -59,7 +60,7 @@ class ReactNativeTrickplayModule : Module() {
         
         // Extract frame bitmap (blocking coroutine call)
         val bitmap = runBlocking {
-            extractor.extractFrame(urlString, seconds, targetWidth, targetHeight)
+            extractor.extractFrame(urlString, seconds, targetWidth, targetHeight, headers)
         }
         
         // Save to disk and return metadata

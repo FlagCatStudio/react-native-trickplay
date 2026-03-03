@@ -17,7 +17,7 @@ public class ReactNativeTrickplayModule: Module {
     Name("ReactNativeTrickplay")
     
     AsyncFunction("extractFrameAsync") { 
-      (urlString: String, seconds: Double, targetWidth: Int?, targetHeight: Int?) -> [String: Any] in
+      (urlString: String, seconds: Double, targetWidth: Int?, targetHeight: Int?, headers: [String: String]?) -> [String: Any] in
       
       guard let url = URL(string: urlString) else {
         throw FrameExtractionError.invalidURL
@@ -27,7 +27,8 @@ public class ReactNativeTrickplayModule: Module {
         from: url,
         at: seconds,
         targetWidth: targetWidth,
-        targetHeight: targetHeight
+        targetHeight: targetHeight,
+        headers: headers
       )
     }
   }
@@ -46,10 +47,16 @@ public class ReactNativeTrickplayModule: Module {
     from url: URL,
     at seconds: Double,
     targetWidth: Int?,
-    targetHeight: Int?
+    targetHeight: Int?,
+    headers: [String: String]? = nil
   ) async throws -> [String: Any] {
     
-    let asset = AVURLAsset(url: url)
+    // Pass HTTP headers for authenticated streams
+    var options: [String: Any] = [:]
+    if let headers = headers, !headers.isEmpty {
+      options["AVURLAssetHTTPHeaderFieldsKey"] = headers
+    }
+    let asset = AVURLAsset(url: url, options: options)
     
     // Verify asset is playable
     // asset.load(.isPlayable) requires iOS 16+, use legacy API for broader compatibility
